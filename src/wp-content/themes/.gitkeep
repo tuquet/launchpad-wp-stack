@@ -1,0 +1,14 @@
+/* =============================================================================
+ * Thư mục này là nơi phát triển WordPress Themes.
+ *
+ * Cách sử dụng:
+ *   1. Clone hoặc tạo theme mới trực tiếp trong thư mục này.
+ *   2. Theme sẽ tự động xuất hiện trong WordPress Admin > Giao diện > Themes.
+ *   3. Mọi thay đổi code sẽ phản ánh ngay lập tức (không cần restart container).
+ *
+ * Ví dụ tạo theme mới:
+ *   mkdir src/wp-content/themes/my-theme
+ *   Tạo file style.css và index.php bên trong
+ *
+ * Mount path trong container: /var/www/html/wp-content/themes/
+ * ============================================================================= */

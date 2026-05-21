@@ -1,6 +1,17 @@
-# Local environment secrets
+# Environment secrets (sinh bởi scripts/copy-env.sh)
 .env
 
-# Docker volumes and files (if any local mounts are used)
-.docker/
+# WordPress core files (mount từ Docker volume)
+# Chỉ track wp-content/ để phát triển theme/plugin
+src/wp-content/uploads/
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Docker
 *.log
