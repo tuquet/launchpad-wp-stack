@@ -1,0 +1,6 @@
+# Local environment secrets
+.env
+
+# Docker volumes and files (if any local mounts are used)
+.docker/
+*.log

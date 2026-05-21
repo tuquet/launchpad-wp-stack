@@ -1,0 +1,48 @@
+version: '3.8'
+
+services:
+  # Database Service (MariaDB is highly recommended for WordPress due to performance and compatibility)
+  db:
+    image: mariadb:10.11
+    container_name: wordpress_db
+    restart: unless-stopped
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${DB_NAME}
+      MYSQL_USER: ${DB_USER}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - db_data:/var/lib/mysql
+    networks:
+      - wp_network
+
+  # WordPress Service
+  wordpress:
+    depends_on:
+      - db
+    image: wordpress:latest
+    container_name: wordpress_app
+    restart: unless-stopped
+    ports:
+      - "${WP_PORT:-8080}:80"
+    environment:
+      WORDPRESS_DB_HOST: db:3306
+      WORDPRESS_DB_USER: ${DB_USER}
+      WORDPRESS_DB_PASSWORD: ${DB_PASSWORD}
+      WORDPRESS_DB_NAME: ${DB_NAME}
+    volumes:
+      - wp_data:/var/www/html
+    networks:
+      - wp_network
+
+volumes:
+  db_data:
+    driver: local
+  wp_data:
+    driver: local
+
+networks:
+  wp_network:
+    driver: bridge
