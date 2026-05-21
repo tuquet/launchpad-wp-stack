@@ -1,0 +1,112 @@
+# =============================================================================
+# Production Docker Compose - Chạy trên VPS
+#
+# Khác biệt với compose.yml (dev):
+#   - KHÔNG expose port DB ra ngoài (bảo mật)
+#   - KHÔNG bind mount themes/plugins (dùng Docker volume)
+#   - Có thể mở rộng thêm Nginx proxy + Redis sau này
+#
+# Setup:
+#   1. Clone repo lên VPS
+#   2. bash scripts/install.sh
+#   3. Truy cập http://<IP>:8888 và thiết lập WordPress
+#   4. Cấu hình Nginx UI (từ LaunchPad Registry Stack) proxy tới :8888
+# =============================================================================
+
+services:
+  # ============================================
+  # MariaDB Database
+  # Port KHÔNG expose ra ngoài (bảo mật production)
+  # ============================================
+  wp-db:
+    container_name: wp-db
+    image: mariadb:10.11
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${DB_NAME}
+      MYSQL_USER: ${DB_USER}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - db-data:/var/lib/mysql
+    healthcheck:
+      test: ['CMD-SHELL', 'healthcheck.sh --connect --innodb_initialized']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - wp-network
+
+  # ============================================
+  # WordPress (Apache + PHP)
+  # Production: dùng Docker volume cho wp-content thay vì bind mount
+  # ============================================
+  wordpress:
+    container_name: wordpress
+    image: wordpress:latest
+    restart: unless-stopped
+    depends_on:
+      wp-db:
+        condition: service_healthy
+    environment:
+      WORDPRESS_DB_HOST: wp-db:3306
+      WORDPRESS_DB_USER: ${DB_USER}
+      WORDPRESS_DB_PASSWORD: ${DB_PASSWORD}
+      WORDPRESS_DB_NAME: ${DB_NAME}
+      WORDPRESS_TABLE_PREFIX: ${WP_TABLE_PREFIX:-wp_}
+      WORDPRESS_DEBUG: ${WP_DEBUG:-false}
+      # Authentication Keys & Salts
+      WORDPRESS_AUTH_KEY: ${WP_AUTH_KEY}
+      WORDPRESS_SECURE_AUTH_KEY: ${WP_SECURE_AUTH_KEY}
+      WORDPRESS_LOGGED_IN_KEY: ${WP_LOGGED_IN_KEY}
+      WORDPRESS_NONCE_KEY: ${WP_NONCE_KEY}
+      WORDPRESS_AUTH_SALT: ${WP_AUTH_SALT}
+      WORDPRESS_SECURE_AUTH_SALT: ${WP_SECURE_AUTH_SALT}
+      WORDPRESS_LOGGED_IN_SALT: ${WP_LOGGED_IN_SALT}
+      WORDPRESS_NONCE_SALT: ${WP_NONCE_SALT}
+    ports:
+      - '${WP_PORT:-8888}:80'
+    volumes:
+      # PHP Configuration
+      - ./config/php/uploads.ini:/usr/local/etc/php/conf.d/uploads.ini:ro
+      # WordPress full persistent storage
+      - wp-data:/var/www/html
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -fsSL http://localhost:80/ || exit 1']
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    networks:
+      - wp-network
+
+  # ============================================
+  # WP-CLI Sidecar
+  # ============================================
+  wpcli:
+    container_name: wpcli
+    image: wordpress:cli
+    depends_on:
+      wordpress:
+        condition: service_healthy
+    environment:
+      WORDPRESS_DB_HOST: wp-db:3306
+      WORDPRESS_DB_USER: ${DB_USER}
+      WORDPRESS_DB_PASSWORD: ${DB_PASSWORD}
+      WORDPRESS_DB_NAME: ${DB_NAME}
+    volumes:
+      - wp-data:/var/www/html
+    networks:
+      - wp-network
+    profiles:
+      - tools
+
+volumes:
+  db-data:
+  wp-data:
+
+networks:
+  wp-network:
+    driver: bridge

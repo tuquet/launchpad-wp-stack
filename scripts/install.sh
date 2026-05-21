@@ -3,6 +3,10 @@
 # =============================================================================
 # LaunchPad WordPress - One-Click Installer
 # Mục tiêu: Tự động hóa 100% quá trình cài đặt và khởi chạy WordPress.
+#
+# Cách dùng:
+#   bash scripts/install.sh               # Dev (mặc định, compose.yml)
+#   bash scripts/install.sh --env prod    # Production (compose.prod.yml)
 # =============================================================================
 
 set -euo pipefail
@@ -11,8 +15,19 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 cd "$PROJECT_DIR"
 
+# Parse --env argument
+ENV_MODE="dev"
+PREV_ARG=""
+for arg in "$@"; do
+  case "$arg" in
+    dev|prod) [ "${PREV_ARG:-}" = "--env" ] && ENV_MODE="$arg" ;;
+  esac
+  PREV_ARG="$arg"
+done
+
 echo "================================================================="
 echo "🚀 CHÀO MỪNG BẠN ĐẾN VỚI LAUNCHPAD WORDPRESS STACK"
+echo "   Chế độ: $([ "$ENV_MODE" = "prod" ] && echo "🔴 PRODUCTION" || echo "🟢 DEVELOPMENT")"
 echo "================================================================="
 echo ""
 echo "⚠️ Yêu cầu hệ thống trước khi bắt đầu:"
@@ -20,10 +35,8 @@ echo "   - Đã cài đặt Docker và Docker Compose."
 echo "   - Ứng dụng Docker (Docker Desktop/Engine) ĐANG CHẠY."
 echo "   - Máy tính còn trống ít nhất 1GB dung lượng ổ cứng."
 echo ""
-read -p "👉 Bạn đã sẵn sàng chưa? (Nhấn Enter để tiếp tục hoặc Ctrl+C để hủy) "
 
 # 1. Kiểm tra Docker có đang chạy không
-echo ""
 echo "🔍 [1/4] Đang kiểm tra hệ thống Docker..."
 if ! command -v docker &> /dev/null; then
     echo "❌ Lỗi: Không tìm thấy lệnh 'docker'. Vui lòng cài đặt Docker trước!"
@@ -38,15 +51,20 @@ echo "✅ Docker đã sẵn sàng!"
 # 2. Sinh biến môi trường
 echo ""
 echo "🔧 [2/4] Đang khởi tạo file cấu hình môi trường (.env)..."
-bash scripts/copy-env.sh
+bash scripts/copy-env.sh --env "$ENV_MODE"
 
-# 3. Tạo thư mục phát triển Theme & Plugin (nếu chưa có)
+# 3. Tạo thư mục (chỉ cần cho dev mode)
 echo ""
-echo "📂 [3/4] Đang chuẩn bị cấu trúc thư mục phát triển..."
-mkdir -p src/wp-content/themes
-mkdir -p src/wp-content/plugins
-mkdir -p src/wp-content/mu-plugins
-echo "✅ Đã tạo thư mục src/wp-content/{themes,plugins,mu-plugins}!"
+echo "📂 [3/4] Đang chuẩn bị cấu trúc thư mục..."
+if [ "$ENV_MODE" = "dev" ]; then
+    mkdir -p src/wp-content/themes
+    mkdir -p src/wp-content/plugins
+    mkdir -p src/wp-content/mu-plugins
+    echo "✅ Đã tạo thư mục src/wp-content/{themes,plugins,mu-plugins}!"
+else
+    mkdir -p migration
+    echo "✅ Đã tạo thư mục migration/ (dùng cho migrate data)!"
+fi
 
 # 4. Chạy Docker Compose
 echo ""
@@ -76,8 +94,9 @@ while ! docker inspect --format='{{.State.Health.Status}}' wordpress 2>/dev/null
 done
 echo ""
 
-# Lấy port từ .env
-WP_PORT=$(grep '^WP_PORT=' .env | cut -d'=' -f2 || echo "8080")
+# Lấy port và IP
+WP_PORT=$(grep '^WP_PORT=' .env 2>/dev/null | cut -d'=' -f2 || echo "8888")
+SERVER_IP=$(hostname -I 2>/dev/null | awk '{print $1}' || echo "localhost")
 
 echo ""
 echo "================================================================="
@@ -85,16 +104,27 @@ echo "🎉 CÀI ĐẶT THÀNH CÔNG! WORDPRESS ĐÃ SẴN SÀNG"
 echo "================================================================="
 echo "Dưới đây là các đường dẫn để bạn trải nghiệm:"
 echo ""
-echo "🌐 Website WordPress       : http://localhost:${WP_PORT}"
-echo "🛠️ Trang Quản trị (Admin)  : http://localhost:${WP_PORT}/wp-admin"
-echo "🗄️ Database (MariaDB)      : localhost:3306"
+echo "🌐 Website WordPress       : http://${SERVER_IP}:${WP_PORT}"
+echo "🛠️ Trang Quản trị (Admin)  : http://${SERVER_IP}:${WP_PORT}/wp-admin"
 echo ""
-echo "📁 Phát triển Theme/Plugin:"
-echo "   - Themes    : src/wp-content/themes/"
-echo "   - Plugins   : src/wp-content/plugins/"
-echo "   - MU-Plugins: src/wp-content/mu-plugins/"
-echo ""
-echo "⚙️ Cấu hình PHP (upload size, memory): config/php/uploads.ini"
+
+if [ "$ENV_MODE" = "prod" ]; then
+    echo "📦 Import dữ liệu từ Local:"
+    echo "   bash scripts/migrate.sh import http://localhost:8888"
+    echo ""
+    echo "🌐 Cấu hình Domain (Nginx UI):"
+    echo "   Proxy Pass → http://127.0.0.1:${WP_PORT}"
+fi
+
+if [ "$ENV_MODE" = "dev" ]; then
+    echo "📁 Phát triển Theme/Plugin:"
+    echo "   - Themes    : src/wp-content/themes/"
+    echo "   - Plugins   : src/wp-content/plugins/"
+    echo "   - MU-Plugins: src/wp-content/mu-plugins/"
+    echo ""
+    echo "⚙️ Cấu hình PHP: config/php/uploads.ini"
+fi
+
 echo ""
 echo "💡 WP-CLI: docker compose run --rm wpcli wp plugin list"
 echo "================================================================="
