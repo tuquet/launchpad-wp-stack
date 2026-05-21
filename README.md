@@ -85,8 +85,8 @@ docker compose up -d
 
 ### Cuối cùng: Truy cập WordPress
 
-- 🌐 **Website:** [http://localhost:8080](http://localhost:8080)
-- 🛠️ **Admin Panel:** [http://localhost:8080/wp-admin](http://localhost:8080/wp-admin)
+- 🌐 **Website:** [http://localhost:8888](http://localhost:8888)
+- 🛠️ **Admin Panel:** [http://localhost:8888/wp-admin](http://localhost:8888/wp-admin)
 
 _(Tài khoản admin được tạo trong lần truy cập đầu tiên)._
 
@@ -179,7 +179,7 @@ File [config/php/uploads.ini](./config/php/uploads.ini) cho phép tuỳ chỉnh 
 | `max_execution_time` | 300s | Thời gian thực thi tối đa |
 | `max_input_vars` | 5000 | Số biến input tối đa (cần cho Page Builders) |
 
-Thay đổi giá trị trong `.env` rồi restart container:
+Chỉnh sửa trực tiếp file `config/php/uploads.ini` rồi restart container:
 
 ```bash
 docker compose restart wordpress
