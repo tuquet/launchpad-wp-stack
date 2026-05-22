@@ -26,8 +26,8 @@ function social_sync_attach_media($url, $post_id) {
     require_once(ABSPATH . 'wp-admin/includes/file.php');
     require_once(ABSPATH . 'wp-admin/includes/image.php');
 
-    // Remove FB limits
-    $url = preg_replace('/stp=[^&]*&?/', '', $url);
+    // Do NOT strip stp parameter as it invalidates Facebook CDN URL signature and returns 403
+    // $url = preg_replace('/stp=[^&]*&?/', '', $url);
 
     $tmp = download_url($url);
     if (is_wp_error($tmp)) return $tmp;
@@ -45,7 +45,14 @@ function social_sync_attach_media($url, $post_id) {
     $file_array['name'] = $filename;
     $file_array['tmp_name'] = $tmp;
 
-    return media_handle_sideload($file_array, $post_id);
+    $attachment_id = media_handle_sideload($file_array, $post_id);
+    if (!is_wp_error($attachment_id)) {
+        wp_update_post([
+            'ID'          => $attachment_id,
+            'post_author' => 1,
+        ]);
+    }
+    return $attachment_id;
 }
 
 function social_sync_import_post(WP_REST_Request $request) {
@@ -76,6 +83,13 @@ function social_sync_import_post(WP_REST_Request $request) {
             'post_id' => $existing[0]->ID
         ]);
     }
+
+    // Set lock transient to prevent race conditions during concurrent imports
+    $lock_key = 'social_import_lock_' . md5($original_id);
+    if (get_transient($lock_key)) {
+        return new WP_Error('import_locked', 'Another import process is currently handling this post.', ['status' => 409]);
+    }
+    set_transient($lock_key, '1', 180); // Lock for 3 minutes
 
     // Category
     $cat_name = ucfirst($platform);
@@ -122,6 +136,7 @@ function social_sync_import_post(WP_REST_Request $request) {
 
     $post_id = wp_insert_post($post_args);
     if (is_wp_error($post_id)) {
+        delete_transient($lock_key);
         return $post_id;
     }
 
@@ -156,6 +171,8 @@ function social_sync_import_post(WP_REST_Request $request) {
             ]);
         }
     }
+
+    delete_transient($lock_key);
 
     return rest_ensure_response([
         'status' => 'success',

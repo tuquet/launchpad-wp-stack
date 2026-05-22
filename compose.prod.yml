@@ -87,6 +87,7 @@ services:
   # ============================================
   wpcli:
     container_name: wpcli
+    user: "33:33"
     image: wordpress:cli
     depends_on:
       wordpress:

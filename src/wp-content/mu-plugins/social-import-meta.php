@@ -120,3 +120,22 @@ add_filter('rest_post_collection_params', function (array $params): array {
     ];
     return $params;
 });
+
+// =============================================================================
+// 4. Auto-cleanup attached media when post is deleted
+// =============================================================================
+
+add_action('before_delete_post', function (int $post_id): void {
+    // Only target posts that were imported from social platforms
+    $original_id = get_post_meta($post_id, '_social_original_id', true);
+    if (!empty($original_id)) {
+        $attachments = get_attached_media('', $post_id);
+        if (!empty($attachments)) {
+            foreach ($attachments as $attachment) {
+                // Force delete the attachment (true skips trash and deletes the physical file)
+                wp_delete_attachment($attachment->ID, true);
+            }
+        }
+    }
+});
+

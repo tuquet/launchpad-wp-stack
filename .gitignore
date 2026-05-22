@@ -17,3 +17,11 @@ Thumbs.db
 *.log
 
 wp-content
+
+# Scraper datasets
+dataset_*.json
+
+# Temporary/diagnostic scripts
+scripts/delete-*.php
+scripts/test-*.php
+scripts/migrate.php

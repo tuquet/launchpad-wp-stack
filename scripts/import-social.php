@@ -8,8 +8,8 @@
  */
 
 // ── Config ────────────────────────────────────────────────────────────
-$fb_json_path = '/tmp/dataset_fb.json';
-$ig_json_path = '/tmp/dataset_ig.json';
+$fb_json_path = '/var/www/html/dataset_fb.json';
+$ig_json_path = '/var/www/html/dataset_ig.json';
 
 // ── Tạo categories ──────────────────────────────────────────────────
 function ensure_category($name, $slug) {
@@ -74,8 +74,8 @@ function attach_media_from_url($url, $post_id) {
     require_once(ABSPATH . 'wp-admin/includes/file.php');
     require_once(ABSPATH . 'wp-admin/includes/image.php');
 
-    // Remove Facebook resolution limits (e.g. stp=dst-jpg_s590x590_tt6) to get the original high-res image
-    $url = preg_replace('/stp=[^&]*&?/', '', $url);
+    // Do NOT strip stp parameter as it invalidates Facebook CDN URL signature and returns 403
+    // $url = preg_replace('/stp=[^&]*&?/', '', $url);
 
     $tmp = download_url($url);
     if (is_wp_error($tmp)) {
@@ -97,6 +97,12 @@ function attach_media_from_url($url, $post_id) {
     $file_array['tmp_name'] = $tmp;
 
     $attachment_id = media_handle_sideload($file_array, $post_id);
+    if (!is_wp_error($attachment_id)) {
+        wp_update_post([
+            'ID'          => $attachment_id,
+            'post_author' => 1,
+        ]);
+    }
     return $attachment_id;
 }
 
@@ -129,15 +135,28 @@ if (file_exists($fb_json_path)) {
                 continue;
             }
 
+            // Set lock transient to prevent race conditions during concurrent imports
+            $lock_key = 'social_import_lock_' . md5($original_id);
+            if (get_transient($lock_key)) {
+                echo "  ⚠️ [{$i}] Skip: Import is currently locked by another process.\n";
+                $fb_skip++;
+                continue;
+            }
+            set_transient($lock_key, '1', 180);
+
             $title   = extract_title($text);
             $content = text_to_html($text);
 
-            // Count media (skip first item which is mediaset_token)
+            // Extract media URLs from multiple potential structures
             $media_items = [];
             if (!empty($post['media'])) {
                 foreach ($post['media'] as $m) {
                     if (isset($m['image']['uri'])) {
                         $media_items[] = $m['image']['uri'];
+                    } elseif (isset($m['photo_image']['uri'])) {
+                        $media_items[] = $m['photo_image']['uri'];
+                    } elseif (isset($m['thumbnail']) && isset($m['__typename']) && $m['__typename'] === 'Photo') {
+                        $media_items[] = $m['thumbnail'];
                     }
                 }
             }
@@ -160,6 +179,7 @@ if (file_exists($fb_json_path)) {
 
             if (is_wp_error($post_id)) {
                 echo "  ❌ [{$i}] Error: " . $post_id->get_error_message() . "\n";
+                delete_transient($lock_key);
                 continue;
             }
 
@@ -183,6 +203,8 @@ if (file_exists($fb_json_path)) {
                                 $gallery_html .= wp_video_shortcode(['src' => wp_get_attachment_url($att_id)]) . "\n";
                             }
                         }
+                    } else {
+                        echo "  ⚠️ [{$i}] Failed to download/attach media: " . $att_id->get_error_message() . "\n";
                     }
                 }
                 if ($gallery_html) {
@@ -193,6 +215,7 @@ if (file_exists($fb_json_path)) {
                 }
             }
 
+            delete_transient($lock_key);
             $fb_count++;
             $short_title = mb_substr($title, 0, 50);
             echo "  ✅ [{$fb_count}] ID:{$post_id} — {$short_title}… (media: " . count($media_items) . ")\n";
@@ -234,6 +257,15 @@ if (file_exists($ig_json_path)) {
                 $ig_skip++;
                 continue;
             }
+
+            // Set lock transient to prevent race conditions during concurrent imports
+            $lock_key = 'social_import_lock_' . md5($original_id);
+            if (get_transient($lock_key)) {
+                echo "  ⚠️ [{$i}] Skip: Import is currently locked by another process.\n";
+                $ig_skip++;
+                continue;
+            }
+            set_transient($lock_key, '1', 180);
 
             $title   = extract_title($caption);
             $content = text_to_html($caption);
@@ -289,6 +321,7 @@ if (file_exists($ig_json_path)) {
 
             if (is_wp_error($post_id)) {
                 echo "  ❌ [{$i}] Error: " . $post_id->get_error_message() . "\n";
+                delete_transient($lock_key);
                 continue;
             }
 
@@ -312,6 +345,8 @@ if (file_exists($ig_json_path)) {
                                 $gallery_html .= wp_video_shortcode(['src' => wp_get_attachment_url($att_id)]) . "\n";
                             }
                         }
+                    } else {
+                        echo "  ⚠️ [{$i}] Failed to download/attach media: " . $att_id->get_error_message() . "\n";
                     }
                 }
                 if ($gallery_html) {
@@ -322,6 +357,7 @@ if (file_exists($ig_json_path)) {
                 }
             }
 
+            delete_transient($lock_key);
             $ig_count++;
             $short_title = mb_substr($title, 0, 50);
             echo "  ✅ [{$ig_count}] ID:{$post_id} — {$short_title}… (type: {$type}, media: {$media_count})\n";
