@@ -139,3 +139,53 @@ add_action('before_delete_post', function (int $post_id): void {
     }
 });
 
+// =============================================================================
+// 5. Fix Flatsome Customizer Icon Layout Compatibility with WP 6.7+
+// =============================================================================
+
+add_action('customize_controls_print_styles', function (): void {
+    ?>
+    <style id="flatsome-customizer-wp67-fix">
+        /* 1. Ensure parent container is relative */
+        #customize-theme-controls > ul > li > h3.accordion-section-title,
+        #customize-theme-controls > ul > li .panel-meta.customize-info,
+        #customize-theme-controls > ul > li .accordion-section-title {
+            position: relative !important;
+        }
+
+        /* 2. Position the before-pseudo-elements (icons) absolutely */
+        #customize-theme-controls > ul > li > h3.accordion-section-title:before,
+        #customize-theme-controls > ul > li .panel-meta.customize-info .panel-title:before,
+        #customize-theme-controls > ul > li .accordion-section-title:before,
+        #customize-theme-controls > ul > li .panel-title:before {
+            position: absolute !important;
+            left: 14px !important;
+            top: 50% !important;
+            transform: translateY(-50%) !important;
+            z-index: 10 !important;
+            margin: 0 !important;
+            pointer-events: none !important;
+            line-height: 1 !important;
+            display: inline-block !important;
+            opacity: 0.7 !important;
+            transition: opacity 0.2s ease-in-out !important;
+        }
+
+        /* 3. Increase padding-left on the buttons/titles to fit the icon */
+        #customize-theme-controls > ul > li > h3.accordion-section-title button.accordion-trigger,
+        #customize-theme-controls > ul > li .panel-meta.customize-info .panel-title,
+        #customize-theme-controls > ul > li .accordion-section-title button.accordion-trigger,
+        #customize-theme-controls > ul > li .panel-title {
+            padding-left: 42px !important;
+        }
+
+        /* 4. Hover effect on list items should make icons more opaque */
+        #customize-theme-controls > ul > li:hover > h3.accordion-section-title:before,
+        #customize-theme-controls > ul > li:hover .panel-title:before {
+            opacity: 1 !important;
+        }
+    </style>
+    <?php
+}, 99);
+
+
