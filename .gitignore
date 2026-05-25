@@ -24,4 +24,7 @@ dataset_*.json
 # Temporary/diagnostic scripts
 scripts/delete-*.php
 scripts/test-*.php
-scripts/migrate.php
+scripts/migrate.php
+
+# Backups
+backups/
