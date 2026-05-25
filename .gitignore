@@ -28,4 +28,4 @@ scripts/migrate.php
 
 # Backups
 backups/
-.gemini
+GEMINI.md

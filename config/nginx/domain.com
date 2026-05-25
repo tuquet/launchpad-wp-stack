@@ -1,7 +1,7 @@
 server {
     listen 80;
     listen [::]:80;
-    server_name nhaateliertattoo.com;
+    server_name domain.com;
 
     # Cho phep upload file lon (theme, plugin, media)
     client_max_body_size 256M;
