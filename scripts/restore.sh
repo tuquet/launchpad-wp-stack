@@ -89,12 +89,12 @@ echo -e "\n🚀 Bắt đầu khôi phục..."
 TEMP_DIR=$(mktemp -d -p "$BACKUP_DIR" tmp_restore_XXXXXX)
 trap 'rm -rf "$TEMP_DIR"' EXIT
 
-# 4. Giải nén file backup tổng hợp
-echo -e "${YELLOW}[1/4]${NC} Đang giải nén file backup master..."
+# 4. Giải nén file backup master
+echo -e "${YELLOW}[1/3]${NC} Đang giải nén file backup master..."
 tar -xzf "$SELECTED_BACKUP" -C "$TEMP_DIR"
 
 # 5. Phục hồi Database
-echo -e "${YELLOW}[2/4]${NC} Đang phục hồi Database..."
+echo -e "${YELLOW}[2/3]${NC} Đang phục hồi Database..."
 if [ -f "$TEMP_DIR/db.sql" ]; then
     docker exec -i wp-db sh -c \
         'exec mysql -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE"' \
@@ -105,25 +105,8 @@ else
     exit 1
 fi
 
-# 6. Phục hồi Uploads (Media) vào docker volume qua container wordpress
-echo -e "${YELLOW}[3/4]${NC} Đang phục hồi Media Uploads..."
-if [ -f "$TEMP_DIR/uploads.tar.gz" ]; then
-    # Xoá thư mục uploads cũ trong container trước để tránh rác
-    docker exec wordpress rm -rf /var/www/html/wp-content/uploads
-    # Giải nén đè lên
-    docker exec -i wordpress sh -c \
-        'cd /var/www/html/wp-content && tar xzf -' \
-        < "$TEMP_DIR/uploads.tar.gz"
-    # Khôi phục phân quyền cho Apache
-    docker exec wordpress chown -R www-data:www-data /var/www/html/wp-content/uploads
-    echo -e "${GREEN}  ✅ Phục hồi Media Uploads thành công!${NC}"
-else
-    echo -e "${RED}  ❌ Không tìm thấy uploads.tar.gz trong bản backup!${NC}"
-    exit 1
-fi
-
-# 7. Phục hồi Code (Themes, Plugins, MU-plugins)
-echo -e "${YELLOW}[4/4]${NC} Đang phục hồi Code (Themes & Plugins)..."
+# 6. Phục hồi Code (Themes, Plugins, MU-plugins)
+echo -e "${YELLOW}[3/3]${NC} Đang phục hồi Code (Themes & Plugins)..."
 if [ -f "$TEMP_DIR/code.tar.gz" ]; then
     # Xoá các file cũ an toàn từ bên trong container (tránh lỗi Permission denied trên host do files thuộc sở hữu của www-data)
     echo "🧹 Dọn dẹp files cũ trong các thư mục mount..."
